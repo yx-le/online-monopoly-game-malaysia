@@ -858,8 +858,8 @@
                 <span class="font-bold text-emerald-400 uppercase tracking-wider text-[11px]">2. Join Friend's Room Code</span>
                 <span id="mpPeerCountBadge" class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-semibold">Local Mode</span>
               </div>
-              <label for="mpJoinCodeInput" class="block text-[11px] text-slate-400 mb-1">Enter 6-Character Room Code</label>
-              <input id="mpJoinCodeInput" type="text" maxlength="12" placeholder="e.g. TYC842" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono uppercase tracking-widest font-bold mb-2.5 focus:outline-none focus:border-emerald-500">
+              <label for="mpJoinCodeInput" class="block text-[11px] text-slate-400 mb-1">Enter Room Code</label>
+              <input id="mpJoinCodeInput" type="text" maxlength="12" placeholder="e.g. TYC8A2KQ" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono uppercase tracking-widest font-bold mb-2.5 focus:outline-none focus:border-emerald-500">
             </div>
             <button id="btnJoinRoom" type="button" class="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-display font-bold shadow">
               🔗 Connect &amp; Join Room
@@ -918,7 +918,7 @@
             </div>
             <label class="flex items-center gap-1.5 text-[11px] text-slate-300 cursor-pointer select-none">
               <input id="mpStrictTurnLock" type="checkbox" class="rounded border-slate-600 text-indigo-500 focus:ring-0">
-              <span>Strict Seat Turn Lock</span>
+              <span>Seat turn lock is always on online</span>
             </label>
           </div>
           <div id="mpSeatsGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1411,7 +1411,7 @@
 
       state.players = activeSlots.map((slot, idx) => ({
         id: idx,
-        name: slot.name.trim() || `Player ${idx + 1}`,
+        name: normalizePlayerName(slot.name, 'Player ' + (idx + 1)),
         isAI: slot.type === 'ai',
         color: slot.color,
         icon: slot.icon,
@@ -1529,6 +1529,7 @@
     // 5. CORE TURN & MOVEMENT ENGINE
     // =========================================================================
     function rollDiceAction() {
+      if(requestHostAction('ROLL'))return;
       const player = getCurrentPlayer();
       if (!player || state.phase !== 'ROLL') return;
 
@@ -1539,7 +1540,7 @@
       d2El.classList.add('dice-rolling');
 
       state.phase = 'MOVING';
-      renderTurnControls();
+      renderAll();
 
       setTimeout(() => {
         d1El.classList.remove('dice-rolling');
@@ -1548,6 +1549,7 @@
         const d1 = Math.floor(Math.random() * 6) + 1;
         const d2 = Math.floor(Math.random() * 6) + 1;
         state.dice = [d1, d2];
+        if (MP.active && MP.isHost) broadcastGameState();
         const sum = d1 + d2;
         const isDoubles = d1 === d2;
         renderDiceSVGs();
@@ -1719,6 +1721,7 @@
     }
 
     function payJailFineAction() {
+      if(requestHostAction('PAY_JAIL_FINE'))return;
       const player = getCurrentPlayer();
       if (!player || !player.inJail || state.phase !== 'ROLL' || player.cash < 50) return;
       chargePlayer(player, 50, null, 'Jail Release Fine');
@@ -1730,6 +1733,7 @@
     }
 
     function useJailCardAction() {
+      if(requestHostAction('USE_JAIL_CARD'))return;
       const player = getCurrentPlayer();
       if (!player || !player.inJail || state.phase !== 'ROLL' || player.jailCards <= 0) return;
       player.jailCards -= 1;
@@ -1745,6 +1749,7 @@
     // 6. BUYING, AUCTIONS, CARDS & BANKRUPTCY
     // =========================================================================
     function buyCurrentPropertyAction() {
+      if(requestHostAction('BUY_PROPERTY'))return;
       const player = getCurrentPlayer();
       if (!player || state.phase !== 'DECISION') return;
       const space = BOARD_SPACES[player.position];
@@ -1769,6 +1774,7 @@
     }
 
     function startPropertyAuctionAction() {
+      if(requestHostAction('START_AUCTION'))return;
       const player = getCurrentPlayer();
       if (!player || state.phase !== 'DECISION') return;
       const space = BOARD_SPACES[player.position];
@@ -1819,6 +1825,7 @@
 
       const bidder = state.players[currentBidderId];
       renderAuctionModal();
+      if (MP.active && MP.isHost) broadcastGameState();
 
       if (bidder.isAI) {
         setTimeout(() => {
@@ -1841,6 +1848,7 @@
     }
 
     function placeAuctionBid(increment) {
+      if(requestHostAction('BID_AUCTION',{increment:increment}))return;
       const auc = state.auction;
       if (!auc || state.phase !== 'AUCTION') return;
       const bidderId = auc.activeBidders[auc.turnIdx];
@@ -1856,6 +1864,7 @@
     }
 
     function foldAuctionBid() {
+      if(requestHostAction('FOLD_AUCTION'))return;
       const auc = state.auction;
       if (!auc || state.phase !== 'AUCTION') return;
       const bidderId = auc.activeBidders[auc.turnIdx];
@@ -1890,6 +1899,7 @@
       state.pendingCard = { player, deckLabel, card };
       const cTitle = currentLang === 'zh' ? (card.title_zh || card.title) : card.title; const cText = currentLang === 'zh' ? (card.text_zh || card.text) : card.text; addLog(`🃏 ${player.name} drew ${deckLabel}: "${cTitle}" — ${cText}`, 'amber');
       renderCardPopupModal();
+      if (MP.active && MP.isHost) broadcastGameState();
 
       if (player.isAI) {
         setTimeout(() => {
@@ -1899,6 +1909,7 @@
     }
 
     function resolvePendingCard() {
+      if(requestHostAction('RESOLVE_CARD'))return;
       const pending = state.pendingCard;
       const modal = document.getElementById('modalCardPopup');
       modal.classList.add('hidden');
@@ -2094,6 +2105,7 @@
     }
 
     function finishTurnOrNext() {
+      if(requestHostAction('END_TURN'))return;
       if (checkGameOverCondition()) return;
 
       // Advance to next non-bankrupt player
@@ -2479,110 +2491,48 @@
       });
     }
 
-    function renderTurnControls() {
-      const player = getCurrentPlayer();
-      if (!player) return;
-
-      document.getElementById('turnBadge').textContent = currentLang === 'zh' ? `第 ${state.turnNumber} 回合` : `Turn ${state.turnNumber}`;
-      document.getElementById('activePlayerDot').style.backgroundColor = player.color;
-      document.getElementById('activePlayerName').textContent = `${player.icon} ${player.name}`;
-      document.getElementById('activePlayerBadge').textContent = player.isAI ? 'AI BOT' : 'HUMAN';
-
-      const statusEl = document.getElementById('diceStatusText');
-      const btnContainer = document.getElementById('turnActionButtons');
-      const contextBox = document.getElementById('contextDecisionBox');
-      contextBox.innerHTML = '';
-      contextBox.classList.add('hidden');
-      contextBox.classList.remove('flex');
-
-      if (state.phase === 'GAME_OVER') {
-        const winner = state.players.find(p => !p.bankrupt);
-        statusEl.innerHTML = `<span class="text-emerald-400 font-bold">🏆 ${winner ? winner.name : 'Tycoon'} Wins the Match!</span>`;
-        btnContainer.innerHTML = `
-          <button type="button" onclick="openSetupModal()" class="w-full py-2 px-4 rounded-xl font-display font-bold text-xs sm:text-sm bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-lg">
-            🔄 Play Again
-          </button>`;
-        return;
+    function renderTurnControls(){
+      const player=getCurrentPlayer();if(!player)return;
+      document.getElementById('turnBadge').textContent=currentLang==='zh'?'第 '+state.turnNumber+' 回合':'Turn '+state.turnNumber;
+      document.getElementById('activePlayerDot').style.backgroundColor=player.color;
+      document.getElementById('activePlayerName').textContent=player.icon+' '+player.name;
+      document.getElementById('activePlayerBadge').textContent=player.isAI?'AI BOT':'HUMAN';
+      const status=document.getElementById('diceStatusText'),buttons=document.getElementById('turnActionButtons'),box=document.getElementById('contextDecisionBox');
+      box.innerHTML='';box.classList.add('hidden');box.classList.remove('flex');
+      if(state.phase==='GAME_OVER'){
+        const winner=state.players.find(function(p){return !p.bankrupt;});
+        status.innerHTML='<span class="text-emerald-400 font-bold">🏆 '+escapeHtml(winner?winner.name:'Tycoon')+' Wins the Match!</span>';
+        buttons.innerHTML='<button type="button" onclick="openSetupModal()" class="w-full py-2 px-4 rounded-xl font-display font-bold text-xs sm:text-sm bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-lg">🔄 Play Again</button>';return;
       }
-
-      if (player.isAI) {
-        statusEl.textContent = `${player.name} is thinking...`;
-        btnContainer.innerHTML = `
-          <button type="button" disabled class="w-full py-2 px-4 rounded-xl font-display font-bold text-xs bg-slate-800 text-slate-400 cursor-not-allowed">
-            🤖 AI Turn in Progress...
-          </button>`;
-        return;
+      if(player.isAI){status.textContent=player.name+' is thinking...';buttons.innerHTML='<button type="button" disabled class="w-full py-2 px-4 rounded-xl font-display font-bold text-xs bg-slate-800 text-slate-400">🤖 AI Turn in Progress...</button>';return;}
+      if(MP.active&&!isMyTurnAllowed()){
+        status.textContent='Waiting for '+player.name+' (Seat '+(state.currentPlayerIndex+1)+') to act…';
+        buttons.innerHTML='<button type="button" disabled class="w-full py-2 px-4 rounded-xl font-display font-bold text-xs bg-slate-800 text-slate-400">⏳ Waiting for '+escapeHtml(player.name)+'</button>';return;
       }
-
-      if (typeof MP !== 'undefined' && MP.active && MP.strictSeatLock && state.currentPlayerIndex !== MP.mySeatIndex) {
-        statusEl.textContent = `Waiting for ${player.name} (Seat #${state.currentPlayerIndex + 1}) to act...`;
-        btnContainer.innerHTML = `
-          <button type="button" onclick="claimSeatInRoom(${state.currentPlayerIndex})" class="w-full py-2 px-4 rounded-xl font-display font-bold text-xs bg-indigo-950/90 hover:bg-indigo-900 text-indigo-200 border border-indigo-500/40">
-            ⏳ ${player.name}'s Turn (Click to Take Seat)
-          </button>`;
-        return;
+      if(state.phase==='ROLL'){
+        if(player.inJail){
+          status.textContent='In Jail (Attempt '+(player.jailTurns+1)+'/3) — Roll doubles or pay $50.';
+          buttons.innerHTML='<button type="button" onclick="rollDiceAction()" class="w-full py-2 px-4 rounded-xl font-display font-bold text-xs sm:text-sm bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-lg">🎲 Roll for Doubles</button>';
+          box.classList.remove('hidden');box.classList.add('flex');
+          box.innerHTML='<div class="flex gap-1.5 w-full"><button type="button" onclick="payJailFineAction()" '+(player.cash<50?'disabled':'')+
+            ' class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold '+(player.cash>=50?'bg-amber-500 hover:bg-amber-400 text-slate-950':'bg-slate-800 text-slate-500')+'">💵 Pay $50 Fine</button>'+
+            (player.jailCards>0?'<button type="button" onclick="useJailCardAction()" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold bg-sky-500 hover:bg-sky-400 text-slate-950">🎟️ Use Jail Card ('+player.jailCards+')</button>':'')+'</div>';
+        }else{
+          status.textContent=state.rolledDoubles?'Rolled Doubles! Roll again!':'On '+BOARD_SPACES[player.position].name+' • Ready to roll';
+          buttons.innerHTML='<button type="button" onclick="rollDiceAction()" class="w-full py-2 px-4 rounded-xl font-display font-bold text-xs sm:text-sm bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-lg">🎲 Roll Dice (Space)</button>';
+        }return;
       }
-
-      if (state.phase === 'ROLL') {
-        if (player.inJail) {
-          statusEl.textContent = `In Jail (Attempt ${player.jailTurns + 1}/3) — Roll doubles or pay $50.`;
-          btnContainer.innerHTML = `
-            <button type="button" onclick="rollDiceAction()" class="w-full py-2 px-4 rounded-xl font-display font-bold text-xs sm:text-sm bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-lg">
-              🎲 Roll for Doubles
-            </button>`;
-          contextBox.classList.remove('hidden');
-          contextBox.classList.add('flex');
-          contextBox.innerHTML = `
-            <div class="flex gap-1.5 w-full">
-              <button type="button" onclick="payJailFineAction()" ${player.cash < 50 ? 'disabled' : ''} class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold ${player.cash >= 50 ? 'bg-amber-500 hover:bg-amber-400 text-slate-950' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}">
-                💵 Pay $50 Fine
-              </button>
-              ${player.jailCards > 0 ? `
-                <button type="button" onclick="useJailCardAction()" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold bg-sky-500 hover:bg-sky-400 text-slate-950">
-                  🎟️ Use Jail Card (${player.jailCards})
-                </button>` : ''}
-            </div>`;
-        } else {
-          statusEl.textContent = state.rolledDoubles ? 'Rolled Doubles! Roll again!' : `On ${BOARD_SPACES[player.position].name} • Ready to roll`;
-          btnContainer.innerHTML = `
-            <button type="button" onclick="rollDiceAction()" class="w-full py-2 px-4 rounded-xl font-display font-bold text-xs sm:text-sm bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-lg">
-              🎲 Roll Dice (Space)
-            </button>`;
-        }
-        return;
+      if(state.phase==='MOVING'){status.textContent='Moving token…';buttons.innerHTML='<button type="button" disabled class="w-full py-2 px-4 rounded-xl font-display font-bold text-xs bg-slate-800 text-slate-400">🎲 Moving…</button>';return;}
+      if(state.phase==='DECISION'){
+        const space=BOARD_SPACES[player.position],canAfford=player.cash>=space.price;
+        status.textContent='Landed on unowned '+space.name+' ($'+space.price+')';
+        buttons.innerHTML='<div class="grid grid-cols-2 gap-1.5 w-full"><button type="button" onclick="buyCurrentPropertyAction()" '+(canAfford?'':'disabled')+
+          ' class="py-2 px-3 rounded-xl font-display font-bold text-xs '+(canAfford?'bg-emerald-500 hover:bg-emerald-400 text-slate-950':'bg-slate-800 text-slate-500')+'">🏠 Buy ($'+space.price+')</button>'+
+          '<button type="button" onclick="startPropertyAuctionAction()" class="py-2 px-3 rounded-xl font-display font-bold text-xs bg-amber-500 hover:bg-amber-400 text-slate-950">🔨 Auction</button></div>';return;
       }
-
-      if (state.phase === 'MOVING') {
-        statusEl.textContent = 'Moving token...';
-        btnContainer.innerHTML = `
-          <button type="button" disabled class="w-full py-2 px-4 rounded-xl font-display font-bold text-xs bg-slate-800 text-slate-400">
-            🎲 Moving...
-          </button>`;
-        return;
-      }
-
-      if (state.phase === 'DECISION') {
-        const space = BOARD_SPACES[player.position];
-        const canAfford = player.cash >= space.price;
-        statusEl.innerHTML = `Landed on unowned <strong class="text-white">${space.name}</strong> ($${space.price})`;
-        btnContainer.innerHTML = `
-          <div class="grid grid-cols-2 gap-1.5 w-full">
-            <button type="button" onclick="buyCurrentPropertyAction()" ${!canAfford ? 'disabled' : ''} class="py-2 px-3 rounded-xl font-display font-bold text-xs ${canAfford ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-lg' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}">
-              🏠 Buy ($${space.price})
-            </button>
-            <button type="button" onclick="startPropertyAuctionAction()" class="py-2 px-3 rounded-xl font-display font-bold text-xs bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg">
-              🔨 Auction
-            </button>
-          </div>`;
-        return;
-      }
-
-      if (state.phase === 'END_TURN') {
-        statusEl.textContent = `Landed on ${BOARD_SPACES[player.position].name}. Build, trade, or end turn.`;
-        btnContainer.innerHTML = `
-          <button type="button" onclick="finishTurnOrNext()" class="w-full py-2 px-4 rounded-xl font-display font-bold text-xs sm:text-sm bg-sky-500 hover:bg-sky-400 text-slate-950 shadow-lg">
-            ⏭️ End Turn (Space)
-          </button>`;
+      if(state.phase==='END_TURN'){
+        status.textContent='Landed on '+BOARD_SPACES[player.position].name+'. Build, trade, or end turn.';
+        buttons.innerHTML='<button type="button" onclick="finishTurnOrNext()" class="w-full py-2 px-4 rounded-xl font-display font-bold text-xs sm:text-sm bg-sky-500 hover:bg-sky-400 text-slate-950 shadow-lg">⏭️ End Turn (Space)</button>';
       }
     }
 
@@ -2745,6 +2695,7 @@
     // 10. QUICK BUILDING & MORTGAGE HANDLERS + DEEDS MODAL
     // =========================================================================
     function quickBuildHouse(spaceId) {
+      if(requestHostAction('BUILD',{spaceId:spaceId}))return;
       const player = getCurrentPlayer();
       if (!player || !canBuildHouseOn(player.id, spaceId)) return;
       const sp = BOARD_SPACES[spaceId];
@@ -2761,6 +2712,7 @@
     }
 
     function quickSellHouse(spaceId) {
+      if(requestHostAction('SELL',{spaceId:spaceId}))return;
       const player = getCurrentPlayer();
       if (!player || !canSellHouseOn(player.id, spaceId)) return;
       const sp = BOARD_SPACES[spaceId];
@@ -2777,6 +2729,7 @@
     }
 
     function quickToggleMortgage(spaceId) {
+      if(requestHostAction('TOGGLE_MORTGAGE',{spaceId:spaceId}))return;
       const player = getCurrentPlayer();
       const sp = BOARD_SPACES[spaceId];
       const prop = state.properties[spaceId];
@@ -2908,94 +2861,60 @@
         </label>`).join('') : `<div class="text-slate-500 py-2">No tradable unimproved properties</div>`;
     }
 
-    function submitTradeProposal() {
-      const fromPlayer = getCurrentPlayer();
-      const targetId = Number(document.getElementById('tradeTargetSelect').value);
-      const targetPlayer = state.players[targetId];
-      const banner = document.getElementById('tradeFeedbackBanner');
-      if (!fromPlayer || !targetPlayer) return;
-
-      const offerCash = Math.max(0, Number(document.getElementById('tradeOfferCash').value) || 0);
-      const reqCash = Math.max(0, Number(document.getElementById('tradeRequestCash').value) || 0);
-      const offerPropIds = Array.from(document.querySelectorAll('.trade-offer-prop:checked')).map(el => Number(el.value));
-      const reqPropIds = Array.from(document.querySelectorAll('.trade-req-prop:checked')).map(el => Number(el.value));
-
-      if (offerCash > fromPlayer.cash) {
-        banner.textContent = `⚠️ You only have $${fromPlayer.cash} available to offer.`;
-        banner.className = 'p-2.5 rounded-xl text-xs font-medium bg-rose-500/20 text-rose-300 border border-rose-500/30';
-        banner.classList.remove('hidden');
-        return;
-      }
-      if (reqCash > targetPlayer.cash) {
-        banner.textContent = `⚠️ ${targetPlayer.name} only has $${targetPlayer.cash} available.`;
-        banner.className = 'p-2.5 rounded-xl text-xs font-medium bg-rose-500/20 text-rose-300 border border-rose-500/30';
-        banner.classList.remove('hidden');
-        return;
-      }
-      if (offerCash === 0 && reqCash === 0 && offerPropIds.length === 0 && reqPropIds.length === 0) {
-        banner.textContent = '⚠️ Select at least one property or cash amount to trade.';
-        banner.className = 'p-2.5 rounded-xl text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30';
-        banner.classList.remove('hidden');
-        return;
-      }
-
-      // Evaluate trade fairness if partner is AI
-      const offerValue = offerCash + offerPropIds.reduce((acc, id) => acc + BOARD_SPACES[id].price, 0);
-      const reqValue = reqCash + reqPropIds.reduce((acc, id) => acc + BOARD_SPACES[id].price, 0);
-
-      if (targetPlayer.isAI && offerValue < reqValue * 0.9) {
-        banner.textContent = `🤖 ${targetPlayer.name} declined the trade: "Your offer ($${offerValue} value) is too low for what you're asking ($${reqValue} value)!"`;
-        banner.className = 'p-2.5 rounded-xl text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30';
-        banner.classList.remove('hidden');
-        SoundFX.pay();
-        return;
-      }
-
-      // Execute Trade!
-      fromPlayer.cash = fromPlayer.cash - offerCash + reqCash;
-      targetPlayer.cash = targetPlayer.cash - reqCash + offerCash;
-      offerPropIds.forEach(id => { state.properties[id].ownerId = targetPlayer.id; });
-      reqPropIds.forEach(id => { state.properties[id].ownerId = fromPlayer.id; });
-
-      SoundFX.buy();
-      addLog(`🤝 TRADE COMPLETED between ${fromPlayer.name} and ${targetPlayer.name}!`, 'emerald');
-
-      const modal = document.getElementById('modalTrade');
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
-      renderAll();
+    function submitTradeProposal(){
+      const player=getCurrentPlayer();if(!player)return;
+      const proposal={
+        fromId:player.id,targetId:Number(document.getElementById('tradeTargetSelect').value),
+        offerCash:Math.max(0,Number(document.getElementById('tradeOfferCash').value)||0),
+        requestCash:Math.max(0,Number(document.getElementById('tradeRequestCash').value)||0),
+        offerPropertyIds:Array.from(document.querySelectorAll('.trade-offer-prop:checked')).map(function(e){return Number(e.value);}),
+        requestPropertyIds:Array.from(document.querySelectorAll('.trade-req-prop:checked')).map(function(e){return Number(e.value);})
+      };
+      if(requestHostAction('TRADE',proposal))return;
+      executeTradeProposal(proposal);
+    }
+    function executeTradeProposal(proposal){
+      const from=state.players[Number(proposal.fromId)],to=state.players[Number(proposal.targetId)];
+      const banner=document.getElementById('tradeFeedbackBanner');
+      const fail=function(msg){if(banner){banner.textContent=msg;banner.className='p-2.5 rounded-xl text-xs font-medium bg-rose-500/20 text-rose-300 border border-rose-500/30';banner.classList.remove('hidden');}else showToast(msg,'amber');return false;};
+      if(!from||!to||from.id===to.id||from.bankrupt||to.bankrupt)return fail('That trade is no longer available.');
+      const giveCash=Math.max(0,Number(proposal.offerCash)||0),takeCash=Math.max(0,Number(proposal.requestCash)||0);
+      const give=Array.isArray(proposal.offerPropertyIds)?proposal.offerPropertyIds.map(Number):[];
+      const take=Array.isArray(proposal.requestPropertyIds)?proposal.requestPropertyIds.map(Number):[];
+      if(giveCash>from.cash)return fail('The offer exceeds your available cash.');
+      if(takeCash>to.cash)return fail(to.name+' does not have enough cash.');
+      const valid=function(ids,owner){return new Set(ids).size===ids.length&&ids.every(function(id){const p=state.properties[id];return !!BOARD_SPACES[id]&&!!p&&p.ownerId===owner&&!p.mortgaged&&!p.houses;});};
+      if(!valid(give,from.id)||!valid(take,to.id))return fail('A selected property changed or is no longer tradable.');
+      if(!giveCash&&!takeCash&&!give.length&&!take.length)return fail('Select at least one property or cash amount to trade.');
+      const giveValue=giveCash+give.reduce(function(n,id){return n+BOARD_SPACES[id].price;},0);
+      const takeValue=takeCash+take.reduce(function(n,id){return n+BOARD_SPACES[id].price;},0);
+      if(to.isAI&&giveValue<takeValue*.9)return fail(to.name+' declined the trade: the offer is too low.');
+      from.cash=from.cash-giveCash+takeCash;to.cash=to.cash-takeCash+giveCash;
+      give.forEach(function(id){state.properties[id].ownerId=to.id;});
+      take.forEach(function(id){state.properties[id].ownerId=from.id;});
+      SoundFX.buy();addLog('🤝 Trade completed between '+from.name+' and '+to.name+'!','emerald');
+      const modal=document.getElementById('modalTrade');if(modal){modal.classList.add('hidden');modal.classList.remove('flex');}
+      renderAll();return true;
     }
 
     // =========================================================================
     // 12. AUCTION, CARD POPUP & NEW GAME SETUP MODALS
     // =========================================================================
-    function renderAuctionModal() {
-      const auc = state.auction;
-      const modal = document.getElementById('modalAuction');
-      if (!auc || state.phase !== 'AUCTION') {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-        return;
-      }
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
-
-      const space = BOARD_SPACES[auc.spaceId];
-      const highBidder = auc.highBidderId !== null ? state.players[auc.highBidderId] : null;
-      const currentBidder = state.players[auc.activeBidders[auc.turnIdx]];
-
-      document.getElementById('auctionPropTitle').textContent = space.name;
-      document.getElementById('auctionListPrice').textContent = `List Price: $${space.price}`;
-      document.getElementById('auctionCurrentBid').textContent = `$${auc.currentBid}`;
-      document.getElementById('auctionHighBidder').textContent = highBidder ? `${highBidder.icon} ${highBidder.name}` : 'No bids yet';
-      document.getElementById('auctionBidderPrompt').textContent = currentBidder
-        ? `${currentBidder.icon} ${currentBidder.name}'s turn to bid (Cash: $${currentBidder.cash})`
-        : '';
-
-      const disableControls = !currentBidder || currentBidder.isAI;
-      document.getElementById('btnAuctionBid10').disabled = disableControls;
-      document.getElementById('btnAuctionBid50').disabled = disableControls;
-      document.getElementById('btnAuctionFold').disabled = disableControls;
+    function renderAuctionModal(){
+      const auction=state.auction,modal=document.getElementById('modalAuction');
+      if(!auction||state.phase!=='AUCTION'){modal.classList.add('hidden');modal.classList.remove('flex');return;}
+      modal.classList.remove('hidden');modal.classList.add('flex');
+      const space=BOARD_SPACES[auction.spaceId],high=auction.highBidderId!==null?state.players[auction.highBidderId]:null;
+      const bidder=state.players[auction.activeBidders[auction.turnIdx]];
+      document.getElementById('auctionPropTitle').textContent=space.name;
+      document.getElementById('auctionListPrice').textContent='List Price: $'+space.price;
+      document.getElementById('auctionCurrentBid').textContent='$'+auction.currentBid;
+      document.getElementById('auctionHighBidder').textContent=high?high.icon+' '+high.name:'No bids yet';
+      document.getElementById('auctionBidderPrompt').textContent=bidder?bidder.icon+' '+bidder.name+"'s turn to bid (Cash: $"+bidder.cash+')':'';
+      const canAct=!!bidder&&!bidder.isAI&&(!MP.active||MP.isHost||isMyTurnAllowed('BID_AUCTION'));
+      document.getElementById('btnAuctionBid10').disabled=!canAct;
+      document.getElementById('btnAuctionBid50').disabled=!canAct;
+      document.getElementById('btnAuctionFold').disabled=!canAct;
     }
 
     function renderCardPopupModal() {
@@ -3014,6 +2933,7 @@
     }
 
     function openSetupModal() {
+      if(MP.active){showToast('Leave the online room before starting a different match.','amber');return;}
       const container = document.getElementById('setupPlayersContainer');
       container.innerHTML = DEFAULT_PLAYER_SLOTS.map((slot, idx) => `
         <div class="flex items-center gap-2 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
@@ -3034,6 +2954,7 @@
     }
 
     function applySetupAndStart() {
+      if(MP.active){showToast('Leave the online room before starting a different match.','amber');return;}
       const slots = DEFAULT_PLAYER_SLOTS.map((s, idx) => ({
         ...s,
         name: document.getElementById(`setupName_${idx}`).value || s.name,
@@ -3062,8 +2983,8 @@
         slate:   'text-slate-300 border-slate-800 bg-slate-950/50'
       };
       const item = document.createElement('div');
-      item.className = `px-2.5 py-1.5 rounded-lg border-l-2 ${toneClasses[tone] || toneClasses.slate}`;
-      item.innerHTML = `<span class="text-[10px] text-slate-500 font-mono mr-1.5">[T${state.turnNumber}]</span>${message}`;
+      item.className = 'px-2.5 py-1.5 rounded-lg border-l-2 ' + (toneClasses[tone] || toneClasses.slate);
+      item.textContent = '[T' + state.turnNumber + '] ' + message;
       panel.prepend(item);
     }
 
@@ -3081,7 +3002,7 @@
       if (typeof renderMultiplayerUI === 'function') {
         renderMultiplayerUI();
       }
-      if (typeof MP !== 'undefined' && MP.active && !MP.suppressBroadcast && state.phase !== 'MOVING') {
+      if (typeof MP !== 'undefined' && MP.active && MP.isHost && !MP.suppressBroadcast) {
         broadcastGameState();
       }
     }
@@ -3092,22 +3013,12 @@
     // =========================================================================
     // 15. ONLINE MULTIPLAYER (PEERJS WEBRTC + BROADCASTCHANNEL + SHARE CODES)
     // =========================================================================
-    const MP = {
-      active: false,
-      isHost: false,
-      roomCode: '',
-      myPeerId: '',
-      myName: 'Tycoon Player',
-      mySeatIndex: 0,
-      strictSeatLock: false,
-      peer: null,
-      connections: [], // Host's list of connected DataConnections
-      hostConn: null,  // Client's DataConnection to Host
-      bc: null,        // BroadcastChannel for instant multi-tab / same-device sync
-      seatClaims: {},  // seatIndex -> { peerId, name }
-      chatHistory: [],
-      unreadChat: 0,
-      suppressBroadcast: false
+    const MP={
+      active:false,isHost:false,roomCode:'',myPeerId:'',hostPeerId:'',myName:'Tycoon Player',mySeatIndex:0,
+      strictSeatLock:true,peer:null,connections:[],hostConn:null,bc:null,seatClaims:{},chatHistory:[],
+      unreadChat:0,suppressBroadcast:false,signalingConnected:false,connectionState:'offline',
+      stateRevision:0,lastAppliedRevision:0,packetSequence:0,seenPacketIds:new Set(),reconnectAttempts:0,
+      reconnectTimer:null,transportPlayerIds:{},playerTransportIds:{}
     };
 
     function showToast(message, tone = 'emerald') {
@@ -3159,548 +3070,318 @@
     function generateRoomCode() {
       const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
       let code = 'TYC';
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 5; i++) {
         code += chars.charAt(Math.floor(Math.random() * chars.length));
       }
       return code;
     }
 
-    function serializeMatchState() {
-      return {
-        turnNumber: state.turnNumber,
-        currentPlayerIndex: state.currentPlayerIndex,
-        phase: state.phase,
-        dice: state.dice,
-        doublesCount: state.doublesCount,
-        rolledDoubles: state.rolledDoubles,
-        freeParkingPot: state.freeParkingPot,
-        freeParkingRule: state.freeParkingRule,
-        startingCash: state.startingCash,
-        selectedTileId: state.selectedTileId,
-        players: state.players,
-        properties: state.properties,
-        auction: state.auction,
-        pendingCard: state.pendingCard,
-        seatClaims: MP.seatClaims,
-        strictSeatLock: MP.strictSeatLock
-      };
+    function serializeMatchState(){
+      return {turnNumber:state.turnNumber,currentPlayerIndex:state.currentPlayerIndex,phase:state.phase,dice:state.dice,
+        doublesCount:state.doublesCount,rolledDoubles:state.rolledDoubles,freeParkingPot:state.freeParkingPot,
+        freeParkingRule:state.freeParkingRule,startingCash:state.startingCash,selectedTileId:state.selectedTileId,
+        players:state.players,properties:state.properties,auction:state.auction,pendingCard:state.pendingCard,
+        seatClaims:MP.seatClaims,strictSeatLock:true};
+    }
+    function applySerializedMatchState(snap,logNote){
+      if(!snap||!Array.isArray(snap.players)||snap.players.length<1||snap.players.length>4)return false;
+      MP.suppressBroadcast=true;if(state.aiTimer)clearTimeout(state.aiTimer);
+      state.turnNumber=Math.max(1,Number(snap.turnNumber)||1);
+      state.currentPlayerIndex=Math.max(0,Math.min(snap.players.length-1,Number(snap.currentPlayerIndex)||0));
+      state.phase=['ROLL','MOVING','DECISION','AUCTION','CARD','END_TURN','GAME_OVER'].includes(snap.phase)?snap.phase:'ROLL';
+      state.dice=Array.isArray(snap.dice)&&snap.dice.length===2?snap.dice.map(function(n){return Math.max(1,Math.min(6,Number(n)||1));}):[1,6];
+      state.doublesCount=Math.max(0,Number(snap.doublesCount)||0);state.rolledDoubles=!!snap.rolledDoubles;
+      state.freeParkingPot=Math.max(0,Number(snap.freeParkingPot)||0);
+      state.freeParkingRule=snap.freeParkingRule==='jackpot'?'jackpot':'classic';
+      state.startingCash=Math.max(1,Number(snap.startingCash)||1500);
+      state.selectedTileId=Math.max(0,Math.min(39,Number(snap.selectedTileId)||0));
+      state.players=snap.players.map(function(p,i){return Object.assign({id:i,name:'Player '+(i+1),isAI:true,color:'#64748b',icon:'🎩',cash:state.startingCash,position:0,inJail:false,jailTurns:0,jailCards:0,bankrupt:false},p,{id:i,name:normalizePlayerName(p.name,'Player '+(i+1))});});
+      state.properties=snap.properties&&typeof snap.properties==='object'?snap.properties:initPropertyState();
+      state.auction=snap.auction&&typeof snap.auction==='object'?snap.auction:null;
+      state.pendingCard=snap.pendingCard&&typeof snap.pendingCard==='object'?snap.pendingCard:null;
+      if(state.pendingCard&&state.pendingCard.player){const id=Number(state.pendingCard.player.id);state.pendingCard.player=state.players[id]||state.players[state.currentPlayerIndex];}
+      if(snap.seatClaims&&typeof snap.seatClaims==='object')MP.seatClaims=snap.seatClaims;
+      MP.strictSeatLock=true;
+      const lock=document.getElementById('mpStrictTurnLock');if(lock){lock.checked=true;lock.disabled=true;}
+      if(logNote)addLog(logNote,'emerald');
+      renderAll();renderAuctionModal();renderCardPopupModal();MP.suppressBroadcast=false;
+      if(!MP.active||MP.isHost)scheduleAIIfNeeded();return true;
+    }
+    function rememberPacketId(id){
+      if(!id)return true;if(MP.seenPacketIds.has(id))return false;MP.seenPacketIds.add(id);
+      if(MP.seenPacketIds.size>300)MP.seenPacketIds.delete(MP.seenPacketIds.values().next().value);
+      return true;
     }
 
-    function applySerializedMatchState(snap, logNote) {
-      if (!snap || !Array.isArray(snap.players)) return;
-      MP.suppressBroadcast = true;
-      if (state.aiTimer) clearTimeout(state.aiTimer);
-
-      state.turnNumber = snap.turnNumber ?? 1;
-      state.currentPlayerIndex = snap.currentPlayerIndex ?? 0;
-      state.phase = snap.phase || 'ROLL';
-      state.dice = snap.dice || [1, 6];
-      state.doublesCount = snap.doublesCount ?? 0;
-      state.rolledDoubles = !!snap.rolledDoubles;
-      state.freeParkingPot = snap.freeParkingPot ?? 0;
-      state.freeParkingRule = snap.freeParkingRule || 'classic';
-      state.startingCash = snap.startingCash || 1500;
-      state.selectedTileId = snap.selectedTileId ?? 0;
-      state.players = snap.players;
-      state.properties = snap.properties || initPropertyState();
-      state.auction = snap.auction || null;
-      state.pendingCard = snap.pendingCard || null;
-      if (snap.seatClaims) MP.seatClaims = snap.seatClaims;
-      if (typeof snap.strictSeatLock === 'boolean') {
-        MP.strictSeatLock = snap.strictSeatLock;
-        const lockEl = document.getElementById('mpStrictTurnLock');
-        if (lockEl) lockEl.checked = MP.strictSeatLock;
-      }
-
-      if (logNote) addLog(logNote, 'emerald');
-      renderAll();
-      renderAuctionModal();
-      renderCardPopupModal();
-      renderMultiplayerUI();
-      MP.suppressBroadcast = false;
-
-      if (!MP.active || MP.isHost) {
-        scheduleAIIfNeeded();
-      }
+    function setupBroadcastChannel(roomCode){
+      if(MP.bc){try{MP.bc.close();}catch(e){}}MP.bc=null;
+      try{if(typeof BroadcastChannel!=='undefined'){MP.bc=new BroadcastChannel('monopoly_tycoon_room_'+roomCode);MP.bc.onmessage=function(ev){if(ev&&ev.data)handleIncomingNetworkPacket(ev.data);};}}catch(e){}
     }
-
-    function setupBroadcastChannel(roomCode) {
-      if (MP.bc) {
-        try { MP.bc.close(); } catch (e) {}
-      }
-      try {
-        if (typeof BroadcastChannel !== 'undefined') {
-          MP.bc = new BroadcastChannel('monopoly_tycoon_room_' + roomCode);
-          MP.bc.onmessage = (ev) => {
-            if (ev && ev.data) handleIncomingNetworkPacket(ev.data);
-          };
-        }
-      } catch (e) {}
+    function sendPacketToPeers(packet){
+      if(!MP.active||!packet)return;
+      packet.roomCode=packet.roomCode||MP.roomCode;packet.senderId=packet.senderId||MP.myPeerId;
+      packet.packetId=packet.packetId||(MP.myPeerId+'-'+(++MP.packetSequence)+'-'+Date.now());rememberPacketId(packet.packetId);
+      if(MP.bc){try{MP.bc.postMessage(packet);}catch(e){}}
+      try{const key='monopoly_mp_pkt_'+MP.roomCode+'_'+packet.packetId;localStorage.setItem(key,JSON.stringify(packet));setTimeout(function(){try{localStorage.removeItem(key);}catch(e){}},2000);}catch(e){}
+      if(MP.isHost)MP.connections.forEach(function(c){if(c&&c.open){try{c.send(packet);}catch(e){}}});
+      else if(MP.hostConn&&MP.hostConn.open){try{MP.hostConn.send(packet);}catch(e){}}
     }
-
-    function sendPacketToPeers(packet) {
-      // 1. Send over BroadcastChannel (instant multi-tab sync)
-      if (MP.bc) {
-        try { MP.bc.postMessage(packet); } catch (e) {}
-      }
-      // 2. Send over localStorage fallback event for same-origin tabs
-      try {
-        localStorage.setItem('monopoly_mp_pkt_' + MP.roomCode, JSON.stringify({ ...packet, _ts: Date.now() }));
-      } catch (e) {}
-      // 3. Send over PeerJS WebRTC connections
-      if (MP.isHost) {
-        MP.connections.forEach(conn => {
-          if (conn && conn.open) {
-            try { conn.send(packet); } catch (e) {}
-          }
-        });
-      } else if (MP.hostConn && MP.hostConn.open) {
-        try { MP.hostConn.send(packet); } catch (e) {}
-      }
-    }
-
-    function broadcastGameState(logNote = '') {
-      if (!MP.active || MP.suppressBroadcast) return;
-      const packet = {
-        type: 'STATE_SYNC',
-        senderId: MP.myPeerId,
-        senderName: MP.myName,
-        roomCode: MP.roomCode,
-        logNote,
-        snapshot: serializeMatchState()
-      };
-      sendPacketToPeers(packet);
-      renderMultiplayerUI();
-    }
-
-    function handleIncomingNetworkPacket(pkt) {
-      if (!pkt || pkt.senderId === MP.myPeerId) return;
-
-      if (pkt.type === 'HELLO_JOIN') {
-        // Assign an available human seat or convert an AI seat to human for the joining friend!
-        if (MP.isHost) {
-          let assignedSeat = -1;
-          for (let i = 0; i < state.players.length; i++) {
-            if (i !== MP.mySeatIndex && !MP.seatClaims[i]) {
-              assignedSeat = i;
-              break;
-            }
-          }
-          if (assignedSeat === -1 && state.players.length < 4) {
-            assignedSeat = state.players.length;
-            const slotTemplate = DEFAULT_PLAYER_SLOTS[assignedSeat] || { color: '#ec4899', icon: '🐕' };
-            state.players.push({
-              id: assignedSeat,
-              name: pkt.senderName || `Player ${assignedSeat + 1}`,
-              isAI: false,
-              color: slotTemplate.color,
-              icon: slotTemplate.icon,
-              cash: state.startingCash,
-              position: 0,
-              inJail: false,
-              jailTurns: 0,
-              jailCards: 0,
-              bankrupt: false
-            });
-          } else if (assignedSeat !== -1) {
-            state.players[assignedSeat].isAI = false;
-            state.players[assignedSeat].name = pkt.senderName || state.players[assignedSeat].name;
-          }
-
-          if (assignedSeat !== -1) {
-            MP.seatClaims[assignedSeat] = { peerId: pkt.senderId, name: pkt.senderName };
-          }
-          SoundFX.buy();
-          const joinMsg = `🌐 ${pkt.senderName} joined Room ${MP.roomCode}${assignedSeat !== -1 ? ` (Seat ${assignedSeat + 1})` : ''}!`;
-          addLog(joinMsg, 'emerald');
-          showToast(joinMsg, 'indigo');
-          sendPacketToPeers({
-            type: 'WELCOME_SEAT',
-            targetPeerId: pkt.senderId,
-            assignedSeat,
-            roomCode: MP.roomCode,
-            snapshot: serializeMatchState()
-          });
-          renderAll();
-          renderMultiplayerUI();
-        }
-        return;
-      }
-
-      if (pkt.type === 'WELCOME_SEAT') {
-        if (pkt.targetPeerId === MP.myPeerId && typeof pkt.assignedSeat === 'number' && pkt.assignedSeat >= 0) {
-          MP.mySeatIndex = pkt.assignedSeat;
-          showToast(`Joined Room ${MP.roomCode} as ${state.players[pkt.assignedSeat]?.name || 'Seat ' + (pkt.assignedSeat + 1)}!`, 'emerald');
-        }
-        if (pkt.snapshot) {
-          applySerializedMatchState(pkt.snapshot);
-        }
-        return;
-      }
-
-      if (pkt.type === 'STATE_SYNC') {
-        applySerializedMatchState(pkt.snapshot, pkt.logNote);
-        if (MP.isHost) {
-          // Relay to any other WebRTC peers
-          MP.connections.forEach(conn => {
-            if (conn && conn.open && conn.peer !== pkt.senderId) {
-              try { conn.send(pkt); } catch (e) {}
-            }
-          });
-        }
-        return;
-      }
-
-      if (pkt.type === 'CLAIM_SEAT') {
-        const { seatIndex, peerId, playerName, makeAI } = pkt;
-        if (state.players[seatIndex]) {
-          if (makeAI) {
-            state.players[seatIndex].isAI = true;
-            delete MP.seatClaims[seatIndex];
-          } else {
-            state.players[seatIndex].isAI = false;
-            state.players[seatIndex].name = playerName || state.players[seatIndex].name;
-            MP.seatClaims[seatIndex] = { peerId, name: playerName };
-          }
-          renderAll();
-          renderMultiplayerUI();
-          if (MP.isHost) broadcastGameState();
-        }
-        return;
-      }
-
-      if (pkt.type === 'CHAT_MSG') {
-        appendChatMessage(pkt.senderName, pkt.text, pkt.color, false);
-        SoundFX.step();
-        if (MP.isHost) {
-          MP.connections.forEach(conn => {
-            if (conn && conn.open && conn.peer !== pkt.senderId) {
-              try { conn.send(pkt); } catch (e) {}
-            }
-          });
-        }
-        return;
-      }
-
-      if (pkt.type === 'REACTION') {
-        spawnFloatingReaction(pkt.emoji, pkt.senderName);
-        if (MP.isHost) {
-          MP.connections.forEach(conn => {
-            if (conn && conn.open && conn.peer !== pkt.senderId) {
-              try { conn.send(pkt); } catch (e) {}
-            }
-          });
-        }
-      }
-    }
-
-    function hostOnlineRoom() {
-      const nameInput = document.getElementById('mpPlayerNameInput');
-      MP.myName = (nameInput?.value || 'Tycoon Host').trim() || 'Tycoon Host';
-      MP.roomCode = generateRoomCode();
-      MP.myPeerId = 'peer_' + Math.random().toString(36).slice(2, 9);
-      MP.active = true;
-      MP.isHost = true;
-      MP.mySeatIndex = 0;
-      MP.connections = [];
-      MP.seatClaims = { 0: { peerId: MP.myPeerId, name: MP.myName } };
-
-      if (state.players[0]) {
-        state.players[0].name = MP.myName;
-        state.players[0].isAI = false;
-      }
-      // Make Seat 2 human-ready or AI that converts automatically when a friend joins
-      setupBroadcastChannel(MP.roomCode);
-
-      // Update URL hash so sharing the URL carries the room code
-      try {
-        history.replaceState(null, '', '#room=' + MP.roomCode);
-      } catch (e) {}
-
-      // Initialize PeerJS WebRTC Host with public STUN ICE servers for cross-network NAT traversal
-      const PEER_ICE_CONFIG = {
-        config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' }
-          ]
-        }
-      };
-      MP.signalingConnected = false;
-      if (typeof Peer !== 'undefined') {
-        try {
-          if (MP.peer) MP.peer.destroy();
-          MP.peer = new Peer('monopoly-tycoon-rm-' + MP.roomCode, PEER_ICE_CONFIG);
-          MP.peer.on('open', () => {
-            MP.signalingConnected = true;
-            renderMultiplayerUI();
-          });
-          MP.peer.on('connection', (conn) => {
-            MP.connections.push(conn);
-            conn.on('data', (data) => handleIncomingNetworkPacket(data));
-            conn.on('close', () => {
-              MP.connections = MP.connections.filter(c => c !== conn);
-              renderMultiplayerUI();
-            });
-            renderMultiplayerUI();
-          });
-          MP.peer.on('error', () => {
-            // BroadcastChannel + Shareable Codes remain active even if public WebRTC stun/signaling is restricted
-            renderMultiplayerUI();
-          });
-        } catch (e) {}
-      }
-
-      SoundFX.buy();
-      addLog(`🌐 Hosted Online Room #${MP.roomCode}! Share the Room Code or Invite Link with friends.`, 'emerald');
-      showToast(`Room #${MP.roomCode} is live! Share the code with friends.`, 'indigo');
-      renderAll();
-      renderMultiplayerUI();
-    }
-
-    function joinOnlineRoom(rawCode) {
-      const code = (rawCode || document.getElementById('mpJoinCodeInput')?.value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (!code || code.length < 3) {
-        showToast('Please enter a valid Room Code (e.g. TYC842).', 'amber');
-        return;
-      }
-      const nameInput = document.getElementById('mpPlayerNameInput');
-      MP.myName = (nameInput?.value || 'Friend Tycoon').trim() || 'Friend Tycoon';
-      if (MP.myName === 'Tycoon Host') MP.myName = 'Challenger ' + Math.floor(Math.random() * 90 + 10);
-      if (nameInput) nameInput.value = MP.myName;
-
-      MP.roomCode = code;
-      MP.myPeerId = 'peer_' + Math.random().toString(36).slice(2, 9);
-      MP.active = true;
-      MP.isHost = false;
-      MP.mySeatIndex = 1;
-
-      setupBroadcastChannel(MP.roomCode);
-
-      try {
-        history.replaceState(null, '', '#room=' + MP.roomCode);
-      } catch (e) {}
-
-      // Announce join over BroadcastChannel / localStorage immediately
-      sendPacketToPeers({
-        type: 'HELLO_JOIN',
-        senderId: MP.myPeerId,
-        senderName: MP.myName,
-        roomCode: MP.roomCode
+    if(!window.monopolyStorageSyncBound){
+      window.monopolyStorageSyncBound=true;
+      window.addEventListener('storage',function(ev){
+        if(!ev.key||ev.key.indexOf('monopoly_mp_pkt_'+(MP.roomCode||'')+'_')!==0||!ev.newValue)return;
+        try{handleIncomingNetworkPacket(JSON.parse(ev.newValue));}catch(e){}
       });
-
-      // Also connect via PeerJS WebRTC to remote host with STUN ICE servers
-      const PEER_ICE_CONFIG = {
-        config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' }
-          ]
-        }
-      };
-      MP.signalingConnected = false;
-      if (typeof Peer !== 'undefined') {
-        try {
-          if (MP.peer) MP.peer.destroy();
-          MP.peer = new Peer(PEER_ICE_CONFIG);
-          MP.peer.on('open', () => {
-            MP.signalingConnected = true;
-            renderMultiplayerUI();
-            const conn = MP.peer.connect('monopoly-tycoon-rm-' + MP.roomCode, { reliable: true });
-            MP.hostConn = conn;
-            conn.on('open', () => {
-              conn.send({
-                type: 'HELLO_JOIN',
-                senderId: MP.myPeerId,
-                senderName: MP.myName,
-                roomCode: MP.roomCode
-              });
-              renderMultiplayerUI();
-            });
-            conn.on('data', (data) => handleIncomingNetworkPacket(data));
-          });
-        } catch (e) {}
-      }
-
-      SoundFX.buy();
-      addLog(`🔗 Connected to Room #${MP.roomCode} as ${MP.myName}!`, 'emerald');
-      showToast(`Connected to Room #${MP.roomCode}!`, 'emerald');
+    }
+    function broadcastGameState(note){
+      if(!MP.active||!MP.isHost||MP.suppressBroadcast)return;
+      MP.stateRevision++;const snapshot=serializeMatchState();
+      try{sessionStorage.setItem('monopoly_host_state_'+MP.roomCode,JSON.stringify(snapshot));}catch(e){}
+      sendPacketToPeers({type:'STATE_SYNC',senderId:MP.myPeerId,revision:MP.stateRevision,logNote:note||'',snapshot:snapshot});
       renderMultiplayerUI();
     }
-
-    function leaveOnlineRoom() {
-      if (MP.peer) {
-        try { MP.peer.destroy(); } catch (e) {}
-        MP.peer = null;
+    function peerOptions(){return{config:{iceServers:[
+      {urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'},{urls:'stun:stun2.l.google.com:19302'}
+    ]}};}
+    function rejectHostAction(peerId,reason){sendPacketToPeers({type:'ACTION_REJECTED',senderId:MP.myPeerId,targetPeerId:peerId,reason:reason||'That action is no longer valid.'});broadcastGameState();}
+    function authorizeHostAction(pkt,transportPeerId){
+      if(!pkt||!pkt.senderId||!pkt.action||!pkt.payload)return{ok:false,reason:'Invalid action request.'};
+      const claim=Object.entries(MP.seatClaims).find(function(x){return x[1]&&x[1].peerId===pkt.senderId;});
+      if(!claim)return{ok:false,reason:'You need an assigned seat to act.'};
+      const seat=Number(claim[0]),actorId=(['BID_AUCTION','FOLD_AUCTION'].includes(pkt.action)&&state.auction)?state.auction.activeBidders[state.auction.turnIdx]:state.currentPlayerIndex;
+      const actor=state.players[actorId];
+      if(transportPeerId&&MP.transportPlayerIds[transportPeerId]&&MP.transportPlayerIds[transportPeerId]!==pkt.senderId)return{ok:false,reason:'This connection is not assigned to that seat.'};
+      if(seat!==actorId)return{ok:false,reason:'It is another player’s turn.'};
+      if(!actor||actor.isAI||actor.bankrupt)return{ok:false,reason:'That player seat is unavailable.'};
+      const ok={
+        ROLL:state.phase==='ROLL',PAY_JAIL_FINE:state.phase==='ROLL'&&actor.inJail,
+        USE_JAIL_CARD:state.phase==='ROLL'&&actor.inJail&&actor.jailCards>0,
+        BUY_PROPERTY:state.phase==='DECISION',START_AUCTION:state.phase==='DECISION',
+        BID_AUCTION:state.phase==='AUCTION',FOLD_AUCTION:state.phase==='AUCTION',
+        RESOLVE_CARD:state.phase==='CARD',END_TURN:state.phase==='END_TURN',
+        BUILD:['ROLL','END_TURN'].includes(state.phase),SELL:['ROLL','END_TURN'].includes(state.phase),
+        TOGGLE_MORTGAGE:['ROLL','END_TURN'].includes(state.phase),TRADE:['ROLL','END_TURN'].includes(state.phase)
+      }[pkt.action];
+      if(!ok)return{ok:false,reason:'That action is not available now.'};
+      if(['BUILD','SELL','TOGGLE_MORTGAGE'].includes(pkt.action)){
+        const id=Number(pkt.payload.spaceId);if(!Number.isInteger(id)||id<0||id>=BOARD_SPACES.length)return{ok:false,reason:'Invalid property selection.'};
       }
-      if (MP.bc) {
-        try { MP.bc.close(); } catch (e) {}
-        MP.bc = null;
-      }
-      MP.active = false;
-      MP.isHost = false;
-      MP.roomCode = '';
-      MP.connections = [];
-      MP.hostConn = null;
-      MP.seatClaims = {};
-      try { history.replaceState(null, '', window.location.pathname); } catch (e) {}
-      showToast('Left multiplayer room. Switched to Local Mode.', 'amber');
-      renderMultiplayerUI();
-      renderAll();
+      if(pkt.action==='BID_AUCTION'&&![10,50].includes(Number(pkt.payload.increment)))return{ok:false,reason:'Invalid bid.'};
+      if(pkt.action==='TRADE'&&Number(pkt.payload.fromId)!==seat)return{ok:false,reason:'The offer does not belong to your seat.'};
+      return{ok:true};
     }
-
-    function claimSeatInRoom(seatIdx) {
-      if (!state.players[seatIdx]) return;
-      const nameInput = document.getElementById('mpPlayerNameInput');
-      if (nameInput && nameInput.value.trim()) {
-        MP.myName = nameInput.value.trim();
+    function runHostAction(pkt){
+      const p=pkt.payload||{};
+      switch(pkt.action){
+        case'ROLL':rollDiceAction();break;case'PAY_JAIL_FINE':payJailFineAction();break;case'USE_JAIL_CARD':useJailCardAction();break;
+        case'BUY_PROPERTY':buyCurrentPropertyAction();break;case'START_AUCTION':startPropertyAuctionAction();break;
+        case'BID_AUCTION':placeAuctionBid(Number(p.increment));break;case'FOLD_AUCTION':foldAuctionBid();break;
+        case'RESOLVE_CARD':resolvePendingCard();break;case'END_TURN':finishTurnOrNext();break;
+        case'BUILD':quickBuildHouse(Number(p.spaceId));break;case'SELL':quickSellHouse(Number(p.spaceId));break;
+        case'TOGGLE_MORTGAGE':quickToggleMortgage(Number(p.spaceId));break;
+        case'TRADE':if(!executeTradeProposal(p))rejectHostAction(pkt.senderId,'Trade could not be completed. Check cash and property ownership.');break;
       }
-      // Clear old seat claim by me
-      Object.keys(MP.seatClaims).forEach(k => {
-        if (MP.seatClaims[k]?.peerId === MP.myPeerId) delete MP.seatClaims[k];
-      });
-      MP.mySeatIndex = seatIdx;
-      state.players[seatIdx].isAI = false;
-      state.players[seatIdx].name = MP.myName;
-      MP.seatClaims[seatIdx] = { peerId: MP.myPeerId, name: MP.myName };
-
-      SoundFX.step();
-      showToast(`You claimed Seat #${seatIdx + 1} (${state.players[seatIdx].icon} ${MP.myName})!`, 'emerald');
-      renderAll();
-      renderMultiplayerUI();
-
-      if (MP.active) {
-        sendPacketToPeers({
-          type: 'CLAIM_SEAT',
-          senderId: MP.myPeerId,
-          seatIndex: seatIdx,
-          peerId: MP.myPeerId,
-          playerName: MP.myName,
-          makeAI: false
+    }
+    function handleIncomingNetworkPacket(pkt,transportPeerId){
+      if(!pkt||!MP.active||pkt.roomCode!==MP.roomCode||pkt.senderId===MP.myPeerId)return;
+      if(MP.isHost&&transportPeerId&&pkt.senderId)MP.transportPlayerIds[transportPeerId]=pkt.senderId;
+      if(!rememberPacketId(pkt.packetId))return;
+      if(pkt.type==='HELLO_JOIN'&&MP.isHost){
+        const name=normalizePlayerName(pkt.senderName,'Friend Tycoon');
+        const old=Object.entries(MP.seatClaims).find(function(x){return x[1]&&x[1].peerId===pkt.senderId;});
+        let seat=old?Number(old[0]):-1;
+        if(seat<0)for(let i=1;i<state.players.length;i++){if(!MP.seatClaims[i]){seat=i;break;}}
+        if(seat<0&&state.players.length<4){seat=state.players.length;const t=DEFAULT_PLAYER_SLOTS[seat]||{color:'#ec4899',icon:'🐕'};
+          state.players.push({id:seat,name:name,isAI:false,color:t.color,icon:t.icon,cash:state.startingCash,position:0,inJail:false,jailTurns:0,jailCards:0,bankrupt:false});}
+        if(seat>=0&&state.players[seat]){state.players[seat].isAI=false;state.players[seat].name=name;MP.seatClaims[seat]={peerId:pkt.senderId,name:name};}
+        sendPacketToPeers({type:'WELCOME_SEAT',senderId:MP.myPeerId,targetPeerId:pkt.senderId,hostPeerId:MP.myPeerId,assignedSeat:seat,snapshot:serializeMatchState(),revision:MP.stateRevision});
+        addLog(seat>=0?name+' joined in Seat '+(seat+1)+'.':name+' tried to join, but the room is full.',seat>=0?'emerald':'amber');
+        renderAll();return;
+      }
+      if(pkt.type==='WELCOME_SEAT'){
+        if(pkt.targetPeerId!==MP.myPeerId)return;
+        if(pkt.assignedSeat>=0){MP.mySeatIndex=pkt.assignedSeat;MP.hostPeerId=pkt.hostPeerId||pkt.senderId;
+          if(pkt.snapshot)applySerializedMatchState(pkt.snapshot);MP.lastAppliedRevision=Math.max(MP.lastAppliedRevision,Number(pkt.revision)||0);
+          showToast('You joined as Seat '+(pkt.assignedSeat+1)+'.','emerald');
+        }else showToast('This room is full. Ask the host to open a seat.','amber');
+        renderMultiplayerUI();return;
+      }
+      if(pkt.type==='STATE_SYNC'){
+        if(MP.isHost||!MP.hostPeerId||pkt.senderId!==MP.hostPeerId)return;
+        const rev=Number(pkt.revision)||0;if(rev&&rev<=MP.lastAppliedRevision)return;
+        if(applySerializedMatchState(pkt.snapshot,pkt.logNote)){MP.lastAppliedRevision=rev||MP.lastAppliedRevision;MP.stateRevision=Math.max(MP.stateRevision,rev);}return;
+      }
+      if(pkt.type==='HOST_ACTION'&&MP.isHost){
+        const auth=authorizeHostAction(pkt,transportPeerId);if(!auth.ok){rejectHostAction(pkt.senderId,auth.reason);return;}runHostAction(pkt);return;
+      }
+      if(pkt.type==='ACTION_REJECTED'&&pkt.targetPeerId===MP.myPeerId){showToast(pkt.reason||'The host rejected that action.','amber');return;}
+      if(pkt.type==='RESYNC_REQUEST'&&MP.isHost){
+        const seat=Object.keys(MP.seatClaims).find(function(k){return MP.seatClaims[k]&&MP.seatClaims[k].peerId===pkt.senderId;});
+        sendPacketToPeers({type:'WELCOME_SEAT',senderId:MP.myPeerId,targetPeerId:pkt.senderId,hostPeerId:MP.myPeerId,assignedSeat:seat===undefined?-1:Number(seat),snapshot:serializeMatchState(),revision:MP.stateRevision});return;
+      }
+      if(pkt.type==='CHAT_MSG'){
+        const row=Object.entries(MP.seatClaims).find(function(x){return x[1]&&x[1].peerId===pkt.senderId;});
+        const player=row&&state.players[Number(row[0])];if(!player||typeof pkt.text!=='string')return;
+        const chat={type:'CHAT_MSG',senderId:pkt.senderId,senderName:player.name,color:player.color,text:pkt.text.slice(0,180),packetId:pkt.packetId,roomCode:MP.roomCode};
+        appendChatMessage(chat.senderName,chat.text,chat.color,false);
+        MP.connections.forEach(function(c){if(c&&c.open&&c.peer!==transportPeerId){try{c.send(chat);}catch(e){}}});if(MP.bc){try{MP.bc.postMessage(chat);}catch(e){}}return;
+      }
+      if(pkt.type==='REACTION'){
+        if(!['🎲','💸','🤝','🔥','😂','👑'].includes(pkt.emoji))return;
+        const row=Object.entries(MP.seatClaims).find(function(x){return x[1]&&x[1].peerId===pkt.senderId;});
+        const player=row&&state.players[Number(row[0])];if(!player)return;
+        const rx={type:'REACTION',senderId:pkt.senderId,senderName:player.name,emoji:pkt.emoji,packetId:pkt.packetId,roomCode:MP.roomCode};
+        spawnFloatingReaction(rx.emoji,rx.senderName);
+        MP.connections.forEach(function(c){if(c&&c.open&&c.peer!==transportPeerId){try{c.send(rx);}catch(e){}}});if(MP.bc){try{MP.bc.postMessage(rx);}catch(e){}}
+      }
+    }
+    function hostOnlineRoom(existingRoomCode){
+      if(MP.active){showToast('You are already in a room.','amber');return;}
+      const input=document.getElementById('mpPlayerNameInput');
+      MP.myName=normalizePlayerName(input&&input.value,state.players[0]?state.players[0].name:'Tycoon Host');
+      MP.roomCode=existingRoomCode||generateRoomCode();MP.myPeerId='host_'+Math.random().toString(36).slice(2,11);
+      MP.hostPeerId=MP.myPeerId;MP.active=true;MP.isHost=true;MP.connectionState='starting';MP.signalingConnected=false;
+      MP.mySeatIndex=0;MP.strictSeatLock=true;MP.connections=[];MP.transportPlayerIds={};MP.playerTransportIds={};
+      if(!existingRoomCode)MP.seatClaims={};MP.seatClaims[0]={peerId:MP.myPeerId,name:MP.myName};
+      if(state.players[0]){state.players[0].name=MP.myName;state.players[0].isAI=false;}
+      const lock=document.getElementById('mpStrictTurnLock');if(lock){lock.checked=true;lock.disabled=true;}
+      try{sessionStorage.setItem('monopoly_host_room',MP.roomCode);history.replaceState(null,'','#room='+MP.roomCode);}catch(e){}
+      setupBroadcastChannel(MP.roomCode);
+      if(typeof Peer!=='undefined'){try{
+        if(MP.peer)MP.peer.destroy();MP.peer=new Peer('monopoly-tycoon-rm-'+MP.roomCode,peerOptions());
+        MP.peer.on('open',function(){MP.signalingConnected=true;MP.connectionState='waiting';renderMultiplayerUI();});
+        MP.peer.on('connection',function(c){
+          MP.connections.push(c);c.on('data',function(d){handleIncomingNetworkPacket(d,c.peer);});
+          c.on('open',function(){MP.connectionState='connected';renderMultiplayerUI();});
+          c.on('close',function(){MP.connections=MP.connections.filter(function(x){return x!==c;});MP.connectionState=MP.connections.some(function(x){return x.open;})?'connected':'waiting';renderMultiplayerUI();});
+          c.on('error',function(){renderMultiplayerUI();});
         });
-        broadcastGameState(`${MP.myName} claimed Seat #${seatIdx + 1}.`);
-      }
+        MP.peer.on('error',function(e){MP.connectionState='error';showToast(e&&e.type==='unavailable-id'?'Room code is already in use. Host another room.':'Multiplayer service connection failed.','amber');renderMultiplayerUI();});
+      }catch(e){MP.connectionState='error';showToast('Could not start multiplayer connection.','amber');}}else MP.connectionState='local';
+      addLog('Hosted online room '+MP.roomCode+'. Share the code or invite link with friends.','emerald');showToast('Room '+MP.roomCode+' is ready.','indigo');renderAll();
+    }
+    function scheduleGuestReconnect(hello){
+      if(!MP.active||MP.isHost||MP.reconnectTimer)return;
+      MP.reconnectAttempts++;const wait=Math.min(12000,1200*Math.pow(2,Math.min(3,MP.reconnectAttempts-1)));
+      MP.reconnectTimer=setTimeout(function(){MP.reconnectTimer=null;connectGuestToHost(hello);},wait);
+    }
+    function connectGuestToHost(hello){
+      if(!MP.active||MP.isHost||typeof Peer==='undefined')return;
+      if(MP.reconnectTimer){clearTimeout(MP.reconnectTimer);MP.reconnectTimer=null;}try{if(MP.peer)MP.peer.destroy();}catch(e){}MP.peer=null;
+      try{
+        MP.peer=new Peer(peerOptions());const peer=MP.peer;
+        peer.on('open',function(){
+          MP.signalingConnected=true;MP.connectionState='connecting';
+          const c=peer.connect('monopoly-tycoon-rm-'+MP.roomCode,{reliable:true,metadata:{playerId:MP.myPeerId}});MP.hostConn=c;
+          c.on('open',function(){MP.reconnectAttempts=0;MP.connectionState='connected';sendPacketToPeers(hello);renderMultiplayerUI();});
+          c.on('data',function(d){handleIncomingNetworkPacket(d);});
+          c.on('close',function(){if(MP.hostConn===c&&MP.active){MP.hostConn=null;MP.connectionState='reconnecting';renderMultiplayerUI();scheduleGuestReconnect(hello);}});
+          c.on('error',function(){if(MP.hostConn===c&&MP.active){MP.hostConn=null;MP.connectionState='reconnecting';renderMultiplayerUI();scheduleGuestReconnect(hello);}});
+        });
+        peer.on('error',function(){if(MP.active&&!MP.isHost){MP.connectionState='reconnecting';renderMultiplayerUI();scheduleGuestReconnect(hello);}});
+      }catch(e){MP.connectionState='reconnecting';scheduleGuestReconnect(hello);}
+    }
+    function joinOnlineRoom(rawCode){
+      if(MP.active){showToast('Leave the current room before joining another.','amber');return;}
+      const input=document.getElementById('mpJoinCodeInput');
+      const code=(rawCode||(input&&input.value)||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+      if(!/^TYC[A-Z0-9]{3,5}$/.test(code)){showToast('Enter a valid room code such as TYC8A2KQ.','amber');return;}
+      const nameInput=document.getElementById('mpPlayerNameInput');MP.myName=normalizePlayerName(nameInput&&nameInput.value,'Friend Tycoon');
+      if(nameInput)nameInput.value=MP.myName;MP.roomCode=code;
+      try{const key='monopoly_mp_peer_'+code;MP.myPeerId=localStorage.getItem(key)||('peer_'+Math.random().toString(36).slice(2,11));localStorage.setItem(key,MP.myPeerId);history.replaceState(null,'','#room='+code);}
+      catch(e){MP.myPeerId='peer_'+Math.random().toString(36).slice(2,11);}
+      MP.hostPeerId='';MP.active=true;MP.isHost=false;MP.connectionState='connecting';MP.signalingConnected=false;
+      MP.mySeatIndex=-1;MP.strictSeatLock=true;MP.lastAppliedRevision=0;MP.reconnectAttempts=0;MP.seatClaims={};
+      setupBroadcastChannel(code);const hello={type:'HELLO_JOIN',senderId:MP.myPeerId,senderName:MP.myName,roomCode:code};sendPacketToPeers(hello);
+      if(typeof Peer!=='undefined')connectGuestToHost(hello);else{MP.connectionState=MP.bc?'local':'error';showToast('Searching for a host…','amber');}
+      showToast('Connecting to room '+code+'…','indigo');renderMultiplayerUI();
+    }
+    function leaveOnlineRoom(){
+      if(MP.reconnectTimer){clearTimeout(MP.reconnectTimer);MP.reconnectTimer=null;}
+      try{if(MP.peer)MP.peer.destroy();}catch(e){}try{if(MP.bc)MP.bc.close();}catch(e){}
+      MP.peer=null;MP.bc=null;MP.hostConn=null;MP.connections=[];MP.active=false;MP.isHost=false;MP.connectionState='offline';
+      MP.roomCode='';MP.hostPeerId='';MP.mySeatIndex=0;MP.seatClaims={};MP.strictSeatLock=true;
+      try{sessionStorage.removeItem('monopoly_host_room');history.replaceState(null,'',window.location.pathname+window.location.search);}catch(e){}
+      showToast('Left the multiplayer room.','amber');renderMultiplayerUI();renderAll();
     }
 
-    function toggleSeatAIMode(seatIdx) {
-      const p = state.players[seatIdx];
-      if (!p) return;
-      p.isAI = !p.isAI;
-      if (p.isAI) {
-        delete MP.seatClaims[seatIdx];
-        if (!p.name.includes('AI')) p.name = p.name + ' AI';
-      } else {
-        p.name = p.name.replace(/\s*AI$/i, '');
-      }
-      renderAll();
-      renderMultiplayerUI();
-      if (MP.active) {
-        broadcastGameState();
-      } else {
-        scheduleAIIfNeeded();
-      }
+    function normalizePlayerName(value,fallback){
+      const name=String(value||'').replace(/[<>]/g,'').replace(/\s+/g,' ').trim().slice(0,20);
+      return name||fallback||'Tycoon Player';
     }
-
-    function isMyTurnAllowed() {
-      const activePlayer = getCurrentPlayer();
-      if (!activePlayer || activePlayer.isAI) return false;
-      if (!MP.active || !MP.strictSeatLock) return true;
-      return state.currentPlayerIndex === MP.mySeatIndex;
+    function escapeHtml(value){
+      return String(value==null?'':value).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});
     }
-
-    function renderMultiplayerUI() {
-      const navBadge = document.getElementById('mpNavStatusBadge');
-      const bannerDot = document.getElementById('mpBannerDot');
-      const bannerText = document.getElementById('mpBannerStatusText');
-      const roomPill = document.getElementById('mpBannerRoomPill');
-      const roomCodeEl = document.getElementById('mpBannerRoomCode');
-      const seatPill = document.getElementById('mpBannerSeatPill');
-      const seatLabel = document.getElementById('mpBannerSeatLabel');
-      const modalCode = document.getElementById('mpModalRoomCodeDisplay');
-      const roleBadge = document.getElementById('mpModalRoleBadge');
-      const peerBadge = document.getElementById('mpPeerCountBadge');
-      const btnLeave = document.getElementById('btnLeaveRoom');
-
-      const claimedCount = Object.keys(MP.seatClaims).length;
-      const webrtcPeers = MP.isHost ? MP.connections.filter(c => c.open).length : (MP.hostConn?.open ? 1 : 0);
-      const totalOnline = Math.max(claimedCount, webrtcPeers + (MP.active ? 1 : 0));
-
-      const sigBadge = document.getElementById('mpSignalingBadge');
-      if (sigBadge) {
-        if (MP.active && MP.signalingConnected) {
-          sigBadge.textContent = '🟢 WebRTC Internet P2P Ready';
-          sigBadge.className = 'text-[10px] px-2 py-1 rounded bg-emerald-950 border border-emerald-500/40 text-emerald-300 font-semibold';
-        } else if (MP.active) {
-          sigBadge.textContent = '🟡 Multi-Tab / Code Sync Active';
-          sigBadge.className = 'text-[10px] px-2 py-1 rounded bg-amber-950 border border-amber-500/40 text-amber-300 font-semibold';
-        } else {
-          sigBadge.textContent = '⚪ P2P Standby';
-          sigBadge.className = 'text-[10px] px-2 py-1 rounded bg-slate-900 border border-slate-700 text-slate-300 font-semibold';
+    function claimSeatInRoom(seatIdx){
+      if(!state.players[seatIdx])return;
+      if(MP.active){showToast('The host assigns one seat to each player when they join.','amber');return;}
+      MP.mySeatIndex=seatIdx;state.players[seatIdx].isAI=false;state.players[seatIdx].name=MP.myName||state.players[seatIdx].name;renderAll();
+    }
+    function toggleSeatAIMode(seatIdx){
+      if(MP.active&&!MP.isHost){showToast('Only the host can change open seats.','amber');return;}
+      const player=state.players[seatIdx];if(!player)return;
+      if(MP.active&&(seatIdx===0||MP.seatClaims[seatIdx])){showToast('That seat is already assigned to a player.','amber');return;}
+      player.isAI=!player.isAI;
+      if(player.isAI){delete MP.seatClaims[seatIdx];if(!/\bAI$/i.test(player.name))player.name+=' AI';}
+      else player.name=player.name.replace(/\s*AI$/i,'')||('Player '+(seatIdx+1));
+      renderAll();if(!MP.active||MP.isHost)scheduleAIIfNeeded();
+    }
+    function isMyTurnAllowed(action){
+      if(!MP.active||MP.isHost)return true;
+      const actorId=(action==='BID_AUCTION'||action==='FOLD_AUCTION')&&state.auction?state.auction.activeBidders[state.auction.turnIdx]:state.currentPlayerIndex;
+      if(MP.mySeatIndex<0||MP.mySeatIndex!==actorId)return false;
+      const claim=MP.seatClaims[actorId];
+      return !!claim&&claim.peerId===MP.myPeerId;
+    }
+    function renderMultiplayerUI(){
+      const get=function(id){return document.getElementById(id);};
+      const nav=get('mpNavStatusBadge'),dot=get('mpBannerDot'),banner=get('mpBannerStatusText');
+      const roomPill=get('mpBannerRoomPill'),roomCode=get('mpBannerRoomCode'),seatPill=get('mpBannerSeatPill');
+      const seatLabel=get('mpBannerSeatLabel'),modalCode=get('mpModalRoomCodeDisplay'),role=get('mpModalRoleBadge');
+      const peerCount=get('mpPeerCountBadge'),leave=get('btnLeaveRoom'),signal=get('mpSignalingBadge'),lock=get('mpStrictTurnLock');
+      if(lock){lock.checked=true;lock.disabled=true;}
+      if(MP.active){
+        const count=MP.isHost?1+MP.connections.filter(function(c){return c&&c.open;}).length:(MP.hostConn&&MP.hostConn.open?2:1);
+        if(nav){nav.textContent='🟢 '+MP.roomCode;nav.className='text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-400/40 font-mono';}
+        if(dot)dot.className='w-2.5 h-2.5 rounded-full '+(MP.connectionState==='connected'?'bg-emerald-400 animate-pulse':'bg-amber-400')+' inline-block';
+        if(banner)banner.textContent=MP.isHost?(MP.connectionState==='connected'?'Room is live • '+(count-1)+' friend(s) connected':'Room hosted • waiting for friends'):(MP.connectionState==='connected'?'Connected to the host':MP.connectionState==='reconnecting'?'Connection lost • reconnecting…':'Connecting to the host…');
+        if(roomPill){roomPill.classList.remove('hidden');roomPill.classList.add('inline-flex');}
+        if(roomCode)roomCode.textContent=MP.roomCode;
+        if(seatPill){seatPill.classList.remove('hidden');seatPill.classList.add('inline-block');}
+        const mine=state.players[MP.mySeatIndex];
+        if(seatLabel)seatLabel.textContent=mine?mine.icon+' '+mine.name:'Waiting for a seat';
+        if(modalCode)modalCode.textContent='ROOM #'+MP.roomCode;
+        if(role)role.textContent=MP.isHost?'👑 Room Host':'🎮 Connected Guest';
+        if(peerCount)peerCount.textContent=count+' connected';
+        if(leave)leave.classList.remove('hidden');
+        if(signal){
+          signal.textContent=MP.isHost?(MP.signalingConnected?'🟢 Host connection ready':'🟡 Waiting for connection service'):(MP.hostConn&&MP.hostConn.open?'🟢 Connected to host':'🟡 Connecting / retrying');
+          signal.className='text-[10px] px-2 py-1 rounded border font-semibold '+(MP.connectionState==='connected'?'bg-emerald-950 border-emerald-500/40 text-emerald-300':'bg-amber-950 border-amber-500/40 text-amber-300');
         }
+      }else{
+        if(nav){nav.textContent='Local / Invite';nav.className='text-[10px] px-1.5 py-0.2 rounded-full bg-slate-950/60 text-indigo-200 font-mono';}
+        if(dot)dot.className='w-2.5 h-2.5 rounded-full bg-indigo-400 inline-block';
+        if(banner)banner.textContent='Pass-and-play / AI mode • open Multiplayer to invite friends.';
+        if(roomPill){roomPill.classList.add('hidden');roomPill.classList.remove('inline-flex');}
+        if(seatPill){seatPill.classList.add('hidden');seatPill.classList.remove('inline-block');}
+        if(modalCode)modalCode.textContent='NO ROOM ACTIVE';
+        if(role)role.textContent='Solo / Pass & Play';if(peerCount)peerCount.textContent='Local mode';
+        if(leave)leave.classList.add('hidden');
+        if(signal){signal.textContent='⚪ P2P standby';signal.className='text-[10px] px-2 py-1 rounded bg-slate-900 border border-slate-700 text-slate-300 font-semibold';}
       }
-      if (MP.active) {
-        navBadge.textContent = `🟢 ${MP.roomCode}`;
-        navBadge.className = 'text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-400/40 font-mono';
-        bannerDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse inline-block';
-        bannerText.textContent = MP.isHost ? 'Hosting Live Multiplayer Room' : 'Connected to Friend’s Multiplayer Room';
-        roomPill.classList.remove('hidden');
-        roomPill.classList.add('inline-flex');
-        roomCodeEl.textContent = MP.roomCode;
-        seatPill.classList.remove('hidden');
-        seatPill.classList.add('inline-block');
-        const mySeatPlayer = state.players[MP.mySeatIndex];
-        seatLabel.textContent = mySeatPlayer ? `${mySeatPlayer.icon} ${mySeatPlayer.name}` : `Seat ${MP.mySeatIndex + 1}`;
-        modalCode.textContent = `ROOM #${MP.roomCode}`;
-        roleBadge.textContent = MP.isHost ? '👑 Room Host' : '🎮 Connected Guest';
-        peerBadge.textContent = `${totalOnline} Player(s) in Room`;
-        btnLeave.classList.remove('hidden');
-      } else {
-        navBadge.textContent = 'Local / Invite';
-        navBadge.className = 'text-[10px] px-1.5 py-0.2 rounded-full bg-slate-950/60 text-indigo-200 font-mono';
-        bannerDot.className = 'w-2.5 h-2.5 rounded-full bg-indigo-400 inline-block';
-        bannerText.textContent = 'Pass-and-Play / AI Mode • Click "Multiplayer" or "Invite Friends" to host a live room!';
-        roomPill.classList.add('hidden');
-        roomPill.classList.remove('inline-flex');
-        seatPill.classList.add('hidden');
-        seatPill.classList.remove('inline-block');
-        modalCode.textContent = 'NO ROOM ACTIVE';
-        roleBadge.textContent = 'Solo / Pass & Play';
-        peerBadge.textContent = 'Local Mode';
-        btnLeave.classList.add('hidden');
-      }
-
-      // Render Seats Grid inside Multiplayer Modal
-      const seatsGrid = document.getElementById('mpSeatsGrid');
-      if (seatsGrid) {
-        seatsGrid.innerHTML = state.players.map((p, idx) => {
-          const isMine = MP.mySeatIndex === idx && !p.isAI;
-          const claim = MP.seatClaims[idx];
-          return `
-            <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl border ${isMine ? 'bg-indigo-950/60 border-indigo-400/60' : 'bg-slate-900/90 border-slate-800'}">
-              <div class="flex items-center gap-2 min-w-0">
-                <span class="w-3 h-3 rounded-full shrink-0" style="background:${p.color}"></span>
-                <span class="text-base">${p.icon}</span>
-                <div class="min-w-0">
-                  <div class="font-bold text-white truncate">${p.name}</div>
-                  <div class="text-[10px] ${p.isAI ? 'text-slate-400' : 'text-emerald-400'}">
-                    ${p.isAI ? '🤖 AI Bot' : (isMine ? '⭐ Your Seat' : (claim ? `🟢 ${claim.name}` : '🪑 Open Human Seat'))}
-                  </div>
-                </div>
-              </div>
-              <div class="flex items-center gap-1 shrink-0">
-                ${!isMine ? `
-                  <button type="button" onclick="claimSeatInRoom(${idx})" class="px-2 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px]">
-                    Claim Seat
-                  </button>` : `<span class="px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">Seated</span>`}
-                <button type="button" onclick="toggleSeatAIMode(${idx})" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] border border-slate-700" title="Toggle Human / AI Bot">
-                  ${p.isAI ? 'Make Human' : 'Make AI'}
-                </button>
-              </div>
-            </div>`;
-        }).join('');
-      }
+      const grid=get('mpSeatsGrid');
+      if(grid)grid.innerHTML=state.players.map(function(player,index){
+        const claim=MP.seatClaims[index],mine=MP.active&&MP.mySeatIndex===index&&claim&&claim.peerId===MP.myPeerId;
+        const status=player.isAI?'🤖 AI bot':mine?'⭐ Your seat':claim?'🟢 '+claim.name:'🪑 Open human seat';
+        const canToggle=MP.active?(MP.isHost&&index>0&&!claim):true;
+        const claimBtn=MP.active?'':'<button type="button" onclick="claimSeatInRoom('+index+')" class="px-2 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px]">Claim seat</button>';
+        const toggleBtn=canToggle?'<button type="button" onclick="toggleSeatAIMode('+index+')" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] border border-slate-700">'+(player.isAI?'Make human':'Make AI')+'</button>':'';
+        return '<div class="flex items-center justify-between gap-2 p-2.5 rounded-xl border '+(mine?'bg-indigo-950/60 border-indigo-400/60':'bg-slate-900/90 border-slate-800')+'">'+
+          '<div class="flex items-center gap-2 min-w-0"><span class="w-3 h-3 rounded-full shrink-0" style="background:'+escapeHtml(player.color)+'"></span>'+
+          '<span class="text-base">'+escapeHtml(player.icon)+'</span><div class="min-w-0"><div class="font-bold text-white truncate">'+escapeHtml(player.name)+'</div>'+
+          '<div class="text-[10px] '+(player.isAI?'text-slate-400':'text-emerald-400')+'">'+escapeHtml(status)+'</div></div></div>'+
+          '<div class="flex items-center gap-1 shrink-0">'+claimBtn+toggleBtn+'</div></div>';
+      }).join('');
     }
 
     function isPrivatePreviewUrl() {
@@ -3725,13 +3406,131 @@
       return `${baseUrl}#room=${MP.roomCode}`;
     }
 
-    function downloadPreconnectedFriendFile() {
-      if (!MP.active) {
-        hostOnlineRoom();
+    function requestHostAction(action,payload){
+      if(!MP.active||MP.isHost)return false;
+      if(!isMyTurnAllowed(action)){showToast('You can act only for your assigned seat when it is your turn.','amber');return true;}
+      sendPacketToPeers({type:'HOST_ACTION',senderId:MP.myPeerId,action:action,payload:payload||{}});return true;
+    }
+    function appendChatMessage(senderName,message,color,own){
+      const text=String(message||'').trim().slice(0,180);if(!text)return;
+      const item={senderName:normalizePlayerName(senderName,'Player'),text:text,color:color||'#94a3b8',own:!!own,time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})};
+      MP.chatHistory.push(item);if(MP.chatHistory.length>80)MP.chatHistory.shift();
+      const list=document.getElementById('chatMessagesList');
+      if(list){
+        const row=document.createElement('div');row.className='rounded-lg border border-slate-800 bg-slate-950/70 p-2';
+        const head=document.createElement('div');head.className='flex items-center justify-between gap-2 text-[10px]';
+        const name=document.createElement('span');name.className='font-bold truncate';name.style.color=item.color;name.textContent=item.senderName+(item.own?' • you':'');
+        const time=document.createElement('span');time.className='text-slate-500';time.textContent=item.time;
+        const body=document.createElement('div');body.className='text-xs text-slate-200 break-words mt-1';body.textContent=item.text;
+        head.appendChild(name);head.appendChild(time);row.appendChild(head);row.appendChild(body);list.appendChild(row);list.scrollTop=list.scrollHeight;
       }
-      try {
-        const snapJson = JSON.stringify(serializeMatchState());
-        const encodedSnap = btoa(unescape(encodeURIComponent(snapJson)));
-        const bootstrapScript = `
-
-</body></html>
+      const panel=document.getElementById('tabPanelChat');
+      if(!own&&panel&&panel.classList.contains('hidden')){MP.unreadChat++;const badge=document.getElementById('chatUnreadBadge');if(badge){badge.textContent=String(MP.unreadChat);badge.classList.remove('hidden');}}
+    }
+    function sendChatMessage(){
+      const input=document.getElementById('chatInput');if(!input)return;
+      const text=input.value.trim().slice(0,180);if(!text)return;input.value='';
+      const player=state.players[MP.mySeatIndex]||getCurrentPlayer();
+      appendChatMessage(MP.active?MP.myName:(player&&player.name),text,player&&player.color,true);
+      if(MP.active)sendPacketToPeers({type:'CHAT_MSG',senderId:MP.myPeerId,senderName:MP.myName,text:text});
+    }
+    function spawnFloatingReaction(emoji,name){
+      const box=document.getElementById('toastContainer');if(!box)return;
+      const el=document.createElement('div');el.className='pointer-events-auto px-3 py-2 rounded-xl border border-indigo-400/40 bg-indigo-950/95 text-white shadow-xl animate-pop';
+      el.textContent=emoji+'  '+normalizePlayerName(name,'Player');box.appendChild(el);setTimeout(function(){el.remove();},2200);
+    }
+    function sendQuickReaction(emoji){
+      if(!['🎲','💸','🤝','🔥','😂','👑'].includes(emoji))return;
+      const player=state.players[MP.mySeatIndex]||getCurrentPlayer();spawnFloatingReaction(emoji,MP.active?MP.myName:(player&&player.name));
+      if(MP.active)sendPacketToPeers({type:'REACTION',senderId:MP.myPeerId,senderName:MP.myName,emoji:emoji});
+    }
+    function createSnapshotCode(){
+      const value=JSON.stringify(serializeMatchState());
+      return 'MONOPOLY-STATE-'+btoa(unescape(encodeURIComponent(value))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/g,'');
+    }
+    function loadSnapshotCode(raw){
+      if(MP.active&&!MP.isHost){showToast('Only the host can load a match snapshot.','amber');return;}
+      const value=String(raw||'').trim(),prefix='MONOPOLY-STATE-';if(!value.startsWith(prefix)){showToast('That match code is not valid.','amber');return;}
+      try{
+        let data=value.slice(prefix.length).replace(/-/g,'+').replace(/_/g,'/');while(data.length%4)data+='=';
+        if(!applySerializedMatchState(JSON.parse(decodeURIComponent(escape(atob(data))))))throw new Error();
+        showToast('Match snapshot loaded.','emerald');
+      }catch(e){showToast('Could not load that match code.','rose');}
+    }
+    function downloadPreconnectedFriendFile(){
+      const invite=getShareableInviteUrl(),content='Join my Malaysia Monopoly game\\nRoom code: '+MP.roomCode+'\\nOpen: '+invite+'\\n\\nIf needed, enter the room code in Multiplayer.';
+      try{const url=URL.createObjectURL(new Blob([content],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');
+        a.href=url;a.download='monopoly-room-'+MP.roomCode+'.txt';document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);},1000);
+      }catch(e){copyTextSafe(invite,'Invite link copied.');}
+    }
+    function setModalOpen(id,open){
+      const modal=document.getElementById(id);if(!modal)return;modal.classList.toggle('hidden',!open);modal.classList.toggle('flex',!!open);
+    }
+    function selectMainTab(tab){
+      ['Log','Portfolio','Chat'].forEach(function(name){
+        const btn=document.getElementById('tabBtn'+name),panel=document.getElementById('tabPanel'+name),active=name.toLowerCase()===tab;
+        if(btn){btn.classList.toggle('bg-indigo-600',active);btn.classList.toggle('text-white',active);}
+        if(panel)panel.classList.toggle('hidden',!active);
+      });
+      if(tab==='chat'){MP.unreadChat=0;const badge=document.getElementById('chatUnreadBadge');if(badge){badge.textContent='';badge.classList.add('hidden');}}
+    }
+    function openGithubCodeModal(){
+      const area=document.getElementById('githubSourceTextarea');if(area)area.value='<!DOCTYPE html>\\n'+document.documentElement.outerHTML;
+      const label=document.getElementById('githubCopyStatusLabel');if(label)label.textContent='Copy the current game page source.';
+      setModalOpen('modalGithubCode',true);
+    }
+    function bindUI(){
+      const bind=function(id,fn){document.querySelectorAll('#'+id).forEach(function(el){el.addEventListener('click',fn);});};
+      bind('btnLangToggle',toggleLanguage);bind('btnOpenMultiplayer',function(){setModalOpen('modalMultiplayer',true);});
+      bind('btnCloseMultiplayer',function(){setModalOpen('modalMultiplayer',false);});bind('btnDoneMultiplayer',function(){setModalOpen('modalMultiplayer',false);});
+      bind('btnHostRoom',function(){hostOnlineRoom();});bind('btnLeaveRoom',leaveOnlineRoom);bind('btnJoinRoom',function(){joinOnlineRoom();});
+      const code=document.getElementById('mpJoinCodeInput');if(code)code.addEventListener('keydown',function(e){if(e.key==='Enter')joinOnlineRoom();});
+      bind('btnQuickShare',function(){copyTextSafe(getShareableInviteUrl(),'Invite link copied.');});
+      bind('btnBannerCopyInvite',function(){copyTextSafe(getShareableInviteUrl(),'Invite link copied.');});
+      bind('btnBannerDownloadInvite',downloadPreconnectedFriendFile);bind('btnDownloadFriendFile',downloadPreconnectedFriendFile);
+      bind('btnCopyRoomCode',function(){if(MP.active)copyTextSafe(MP.roomCode,'Room code copied.');else showToast('Host a room first.','amber');});
+      bind('btnShareInviteLink',function(){copyTextSafe(getShareableInviteUrl(),'Invite link copied.');});
+      bind('btnBannerCopyState',function(){copyTextSafe(createSnapshotCode(),'Match code copied.');});
+      bind('btnSyncNow',function(){if(!MP.active){showToast('Join a room first.','amber');return;}if(MP.isHost)broadcastGameState();else sendPacketToPeers({type:'RESYNC_REQUEST',senderId:MP.myPeerId});});
+      bind('mpStrictTurnLock',function(e){e.target.checked=true;});
+      bind('btnOpenTrade',openTradeModal);bind('btnCloseTrade',function(){setModalOpen('modalTrade',false);});
+      bind('btnCancelTrade',function(){setModalOpen('modalTrade',false);});bind('btnSubmitTrade',submitTradeProposal);
+      bind('btnOpenManage',openManageModal);bind('btnCloseManage',function(){setModalOpen('modalManage',false);});bind('btnDoneManage',function(){setModalOpen('modalManage',false);});
+      bind('btnNewGameModal',openSetupModal);bind('btnCloseSetup',function(){setModalOpen('modalSetup',false);});
+      bind('btnCancelSetup',function(){setModalOpen('modalSetup',false);});bind('btnStartNewMatch',applySetupAndStart);
+      bind('btnOpenRules',function(){setModalOpen('modalRules',true);});bind('btnCloseRules',function(){setModalOpen('modalRules',false);});
+      bind('btnGotItRules',function(){setModalOpen('modalRules',false);});bind('btnAckCardPopup',resolvePendingCard);
+      bind('btnAuctionBid10',function(){placeAuctionBid(10);});bind('btnAuctionBid50',function(){placeAuctionBid(50);});bind('btnAuctionFold',foldAuctionBid);
+      bind('btnClearLog',clearLog);bind('btnPrevTile',function(){selectTileFromList((state.selectedTileId+39)%40);});
+      bind('btnNextTile',function(){selectTileFromList((state.selectedTileId+1)%40);});
+      bind('tabBtnLog',function(){selectMainTab('log');});bind('tabBtnPortfolio',function(){selectMainTab('portfolio');});
+      bind('tabBtnChat',function(){selectMainTab('chat');});bind('btnSendChat',sendChatMessage);
+      const chat=document.getElementById('chatInput');if(chat)chat.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChatMessage();}});
+      bind('btnExportStateCode',function(){copyTextSafe(createSnapshotCode(),'Match code copied.');});
+      bind('btnImportStateCode',function(){const el=document.getElementById('mpStateCodeInput');loadSnapshotCode(el&&el.value);});
+      bind('btnOpenGithubCopy',openGithubCodeModal);bind('btnCloseGithubCode',function(){setModalOpen('modalGithubCode',false);});
+      bind('btnDoneGithubCode',function(){setModalOpen('modalGithubCode',false);});
+      bind('btnCopyGithubTextarea',function(){const el=document.getElementById('githubSourceTextarea');if(el)copyTextSafe(el.value,'Page source copied.');});
+      bind('btnSoundToggle',function(){SoundFX.enabled=!SoundFX.enabled;const el=document.getElementById('btnSoundToggle');if(el)el.textContent=SoundFX.enabled?'🔊 Sound On':'🔇 Sound Off';});
+      ['modalManage','modalTrade','modalSetup','modalRules','modalMultiplayer','modalGithubCode'].forEach(function(id){
+        const modal=document.getElementById(id);if(modal)modal.addEventListener('click',function(e){if(e.target===modal)setModalOpen(id,false);});
+      });
+      document.addEventListener('keydown',function(e){
+        if(e.code!=='Space'||e.repeat||/INPUT|TEXTAREA|SELECT/.test((e.target&&e.target.tagName)||''))return;
+        if(state.phase==='ROLL'){e.preventDefault();rollDiceAction();}else if(state.phase==='END_TURN'){e.preventDefault();finishTurnOrNext();}
+      });
+    }
+    function bootstrapGame(){
+      bindUI();startNewGame();selectMainTab('log');
+      const match=window.location.hash.match(/(?:^#|&)room=([A-Z0-9]+)/i);if(!match)return;
+      const code=match[1].toUpperCase();let resume=false;
+      try{resume=sessionStorage.getItem('monopoly_host_room')===code;}catch(e){}
+      if(resume){
+        try{const stateCode=sessionStorage.getItem('monopoly_host_state_'+code);if(stateCode)applySerializedMatchState(JSON.parse(stateCode));}catch(e){}
+        setTimeout(function(){hostOnlineRoom(code);},120);
+      }else setTimeout(function(){joinOnlineRoom(code);},180);
+    }
+    bootstrapGame();
+    </script>
+</body>
+</html>
