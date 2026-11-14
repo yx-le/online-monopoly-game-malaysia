@@ -314,11 +314,11 @@
         <details class="quick-menu">
           <summary class="quick-menu-trigger">More / 更多</summary>
           <div class="quick-menu-panel">
-            <button id="btnOpenTrade" type="button" class="quick-menu-action"><span>🤝</span><span>Trade</span></button>
-            <button id="btnOpenManage" type="button" class="quick-menu-action"><span>🏠</span><span>Deeds &amp; Build</span></button>
-            <button id="btnOpenRules" type="button" class="quick-menu-action"><span>📜</span><span>Rules</span></button>
-            <button id="btnSoundToggle" type="button" class="quick-menu-action" title="Toggle Sound Effects">🔊 SFX On</button>
-            <button id="btnNewGameModal" type="button" class="quick-menu-action">⚙️ New Game</button>
+            <button id="btnOpenTrade" type="button" class="quick-menu-action" onclick="this.closest('details').open = false"><span>🤝</span><span>Trade</span></button>
+            <button id="btnOpenManage" type="button" class="quick-menu-action" onclick="this.closest('details').open = false"><span>🏠</span><span>Deeds &amp; Build</span></button>
+            <button id="btnOpenRules" type="button" class="quick-menu-action" onclick="this.closest('details').open = false"><span>📜</span><span>Rules</span></button>
+            <button id="btnSoundToggle" type="button" class="quick-menu-action" onclick="this.closest('details').open = false" title="Toggle Sound Effects">🔊 SFX On</button>
+            <button id="btnNewGameModal" type="button" class="quick-menu-action" onclick="this.closest('details').open = false">⚙️ New Game</button>
           </div>
         </details>
       </nav>
