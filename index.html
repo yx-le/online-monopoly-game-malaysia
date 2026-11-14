@@ -3189,13 +3189,14 @@
       if(pkt.type==='HELLO_JOIN'&&MP.isHost){
         const name=normalizePlayerName(pkt.senderName,'Friend Tycoon');
         const old=Object.entries(MP.seatClaims).find(function(x){return x[1]&&x[1].peerId===pkt.senderId;});
+        const reconnecting=!!old;
         let seat=old?Number(old[0]):-1;
         if(seat<0)for(let i=1;i<state.players.length;i++){if(!MP.seatClaims[i]){seat=i;break;}}
         if(seat<0&&state.players.length<4){seat=state.players.length;const t=DEFAULT_PLAYER_SLOTS[seat]||{color:'#ec4899',icon:'🐕'};
           state.players.push({id:seat,name:name,isAI:false,color:t.color,icon:t.icon,cash:state.startingCash,position:0,inJail:false,jailTurns:0,jailCards:0,bankrupt:false});}
         if(seat>=0&&state.players[seat]){state.players[seat].isAI=false;state.players[seat].name=name;MP.seatClaims[seat]={peerId:pkt.senderId,name:name};}
         sendPacketToPeers({type:'WELCOME_SEAT',senderId:MP.myPeerId,targetPeerId:pkt.senderId,hostPeerId:MP.myPeerId,assignedSeat:seat,snapshot:serializeMatchState(),revision:MP.stateRevision});
-        addLog(seat>=0?name+' joined in Seat '+(seat+1)+'.':name+' tried to join, but the room is full.',seat>=0?'emerald':'amber');
+        if(!reconnecting)addLog(seat>=0?name+' joined in Seat '+(seat+1)+'.':name+' tried to join, but the room is full.',seat>=0?'emerald':'amber');
         renderAll();return;
       }
       if(pkt.type==='WELCOME_SEAT'){
@@ -3273,7 +3274,7 @@
         peer.on('open',function(){
           MP.signalingConnected=true;MP.connectionState='connecting';
           const c=peer.connect('monopoly-tycoon-rm-'+MP.roomCode,{reliable:true,metadata:{playerId:MP.myPeerId}});MP.hostConn=c;
-          c.on('open',function(){MP.reconnectAttempts=0;MP.connectionState='connected';sendPacketToPeers(hello);renderMultiplayerUI();});
+          c.on('open',function(){MP.reconnectAttempts=0;MP.connectionState='connected';sendPacketToPeers({type:'HELLO_JOIN',senderId:MP.myPeerId,senderName:MP.myName,roomCode:MP.roomCode});renderMultiplayerUI();});
           c.on('data',function(d){handleIncomingNetworkPacket(d);});
           c.on('close',function(){if(MP.hostConn===c&&MP.active){MP.hostConn=null;MP.connectionState='reconnecting';renderMultiplayerUI();scheduleGuestReconnect(hello);}});
           c.on('error',function(){if(MP.hostConn===c&&MP.active){MP.hostConn=null;MP.connectionState='reconnecting';renderMultiplayerUI();scheduleGuestReconnect(hello);}});
